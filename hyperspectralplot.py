@@ -212,7 +212,8 @@ def plot_shiptracks_daily_cov():
     
       
     fig = plt.figure(figsize=(14,5))    
-    plt.rc('font', size=14)
+    plt.suptitle(deployment_string)
+    plt.rc('font', size=18)
     gs=GridSpec(4,10) # 2 rows, 3 columns
     
       
@@ -241,15 +242,18 @@ def plot_shiptracks_daily_cov():
     gl = ax.gridlines(draw_labels=True)
     gl.xlabels_top = gl.ylabels_right = False
     gl.xformatter =  LONGITUDE_FORMATTER
-    gl.xlabel_style = {'size': 12,  'rotation': 0}
-    gl.ylabel_style = {'size': 12,  'rotation': 0}
+    if deployment == 'Balaton2019':
+        gl.xlabel_style = {'size': 14,  'rotation': 0}
+        gl.ylabel_style = {'size': 14,  'rotation': 0}
+    else: 
+        gl.xlabel_style = {'size': 14,  'rotation': 0}
+        gl.ylabel_style = {'size': 14,  'rotation': 0}
     lon_formatter = LongitudeFormatter(zero_direction_label=True)
     lat_formatter = LatitudeFormatter()
     ax.xaxis.set_major_formatter(lon_formatter)
     ax.tick_params(labelsize = 10)
  
     # black transect lines
-    plt.suptitle(deployment_string)
     for i in range(len(LAT)):
         if len(LAT[i]) > 1:
             plt.plot(LON[i],LAT[i],alpha=0.3,color='gray',zorder=1)
@@ -264,18 +268,19 @@ def plot_shiptracks_daily_cov():
     
     Vmin = np.floor(timenum[0]) + (window_center-3)/24;
     Vmax = np.floor(timenum[0]) + (window_center+3)/24;
+    
     hourticks = np.floor(timenum[0])  + [(window_center-3)/24, (window_center-2)/24,  (window_center-1)/24,  window_center/24, (window_center+1)/24, (window_center+2)/24, (window_center+3)/24]
     loc = mdates.AutoDateLocator()
     if deployment == 'Lisbon2021':
-        sc = plt.scatter(LON[plot_index], LAT[plot_index],s=15, c = timenum, cmap ='rainbow', label= 'Example day', vmin=Vmin, vmax=Vmax, zorder=2)
+        sc = plt.scatter(LON[plot_index], LAT[plot_index],s=15, c = timenum, cmap ='rainbow', label= 'Example window', vmin=Vmin, vmax=Vmax, zorder=2)
         cbar = plt.colorbar(sc,format=mdates.DateFormatter('%H %M'),ticks=hourticks,location="bottom")
     else:
-        sc = plt.scatter(LON[plot_index], LAT[plot_index],s=15, c = timenum, cmap ='rainbow', label= 'Example day', vmin=Vmin, vmax=Vmax, zorder=2)
+        sc = plt.scatter(LON[plot_index], LAT[plot_index],s=15, c = timenum, cmap ='rainbow', label= 'Example window', vmin=Vmin, vmax=Vmax, zorder=2)
         cbar = plt.colorbar(sc,format=mdates.DateFormatter('%H %M'),ticks=hourticks)
         #cbar.ax.set_yticklabels(['8','9','10','11','12','13'])
     cbar.set_label('Hour of day (UTC)')   
 
-    plt.legend(fontsize=12, loc=plot_loc)
+    plt.legend(fontsize=14, loc=plot_loc)
     if deployment == 'Balaton2019':
         scale_bar(ax, (0.1, 0.1), 500, metres_per_unit=1, unit_name='m')
     elif deployment == 'Plymouth2021':
@@ -297,6 +302,7 @@ def plot_shiptracks_daily_cov():
     for j in range(len(time)-1):
         plt.plot(wl,rrs[j,:],color=colors[timenum_int[j]],linewidth=1.5,alpha=0.6)
     plt.xlim(350,900)
+    plt.xticks([400, 500, 600,700,800,900])
     plt.gca().set_ylim(bottom =-0.001)
     plt.grid()
     plt.xlabel('Wavelength [nm]')
@@ -310,37 +316,38 @@ def plot_shiptracks_daily_cov():
 
 if __name__ == '__main__':
     
-    hours = 3 # window +/- of satelite pass
-       
-    deployment = 'Balaton2019'
-    path_MSI = '/users/rsg/nse/scratch_network/MONOCLE/ac_comparison/msi/data/L2/v1.4.0/UTM_33TYN/' # Balaton car ferry
-    path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Balaton2019_3C/'
-    deployment_string = '' #'Lake Balaton' #' 28-05-2019 - 05-07-2019'
-    plot_index = 26
-    plot_loc = 1
-    window_center = 11
+   # 'script to produce Fig.1 in MS'
     
-    #deployment = 'Plymouth2021'
-    #path_MSI = '/users/rsg/nse/scratch_network/MONOCLE/ac_comparison/msi/data/L2/v1.4.0/UTM_30UVA/'   # Plymouth
-    #path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Plymouth2021_3C/'
-    #deployment_string = ''#'Plymouth Sound' #' 25-04-2021 - 03-10-2021'
-    #plot_index = 81 # 32 also looks good
-    #plot_loc = 4
-    #window_center = 12
-    
-   # deployment = 'Lisbon2021'
-    #path_MSI = '/data/datasets/Projects/lakes_MSI/data/L2/v1.5.0/UTM_29SMC'
-    #path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Lisbon2021_3C/'
-    #deployment_string = '' #'Tagus River: 09-06-2021 - 27-11-2021'
-    #plot_index = 17
+   # hours = 3 # window +/- of satelite pass
+   # deployment = 'Balaton2019'
+    #path_MSI = '/users/rsg/nse/scratch_network/MONOCLE/ac_comparison/msi/data/L2/v1.4.0/UTM_33TYN/' # Balaton car ferry
+    #path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Balaton2019_3C/'
+    #deployment_string = '' #'Lake Balaton' #' 28-05-2019 - 05-07-2019'
+    #plot_index = 26
     #plot_loc = 1
-    #window_center = 12
+    #window_center = 11
+    #hours = 3 # window +/- of satelite pass
+  
     
-    # deployment = 'Danube2021'
-    # path_MSI = '/data/datasets/Projects/lakes_MSI/data/L2/v1.5.0/UTM_35TPK' # Danube
-    # path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Danube2021_3C/'
-    # deployment_string = 'Danube Delta, 2021'
-    # plot_index = 5
+   deployment = 'Plymouth2021'
+   path_MSI = '/users/rsg/nse/scratch_network/MONOCLE/ac_comparison/msi/data/L2/v1.4.0/UTM_30UVA/'   # Plymouth
+   path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Plymouth2021_3C/'
+   deployment_string = ''#'Plymouth Sound' #' 25-04-2021 - 03-10-2021'
+   plot_index =   32 #81
+   plot_loc = 4
+   window_center = 12
+   hours = 3 # window +/- of satelite pass
+  
+    
+    #deployment = 'Lisbon2021'
+   # path_MSI = '/data/datasets/Projects/lakes_MSI/data/L2/v1.5.0/UTM_29SMC'
+   # path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Lisbon2021_3C/'
+    #deployment_string = '' #'Tagus River: 09-06-2021 - 27-11-2021'
+    #plot_index = 1
+   #plot_loc = 1
+   # window_center = 12
+    #hours = 2 # window +/- of satelite pass - for Tagus
+
         
     meta_files = sorted(glob.glob(os.path.join(path_sr, '*data*')))     # 
     rrs_files = sorted(glob.glob(os.path.join(path_sr, '*rrs*')))  #    
@@ -362,6 +369,9 @@ if __name__ == '__main__':
         meta = pd.read_csv(os.path.join(meta_files[i]))  #
         time = [datetime.strptime(meta['timestamp'][j][0:19],'%Y-%m-%d %H:%M:%S') for j in range(len(meta))] # convert
         time = np.array(time)  # convert to np array for masking
+        print(i)
+        print(time[1])
+        
         lat =  np.array(meta['lat'])
         lon =  np.array(meta['lon'])
         q =  np.array(meta['q_3'])

@@ -2,20 +2,16 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Dec  8 14:14:43 2021
-author: tj9717 - 
+author: tj9717 - tjor@pml.ac.uk
 
-Code for Rrs variogram paper submitted to Fronteirs in RS. When running on PML
+Code for Rrs variogram paper submitted to Frontiers in RS. When running on PML
 machine use: /users/rsg/tjor/.conda/envs/geospatial/bin/ as conda evn.
 
+Updated for Frontiers RS revision on 08/09/2023
+
 """
 
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Oct 14 12:35:48 2021
 
-@author: tjor
-"""
 
 import sys
 #sys.path.append('/users/rsg/anla/anaconda3/envs/geospatial/*')
@@ -59,7 +55,7 @@ import utm
 
 
 def plot_data_map_V2(data_is, bands, title_string, map_resolution=12):  
-    '''plots coverage map for each deploymnet - not used in MS'''
+    '''plots coverage map for each deploymnet - not used final version of MS'''
     
     lat = data_is['lat']
     lon = data_is['lon']
@@ -193,8 +189,8 @@ def plot_data_map_zoom(data_is, bands, title_string, map_resolution=12):
     
 def variogram_rrs_bands(matchdata, lag_bound, n_lags, bands):
     
-    ''' Function to compute experimental and theoretical variograms, along with VG fit data.
-    Uses Gaussian VG model and nMAE as filter parameter for fit.'''
+    ''' Function to compute experimental and theoretical variograms, along with VG fit to data.'''
+  
     
     X = np.asarray(utm.from_latlon(np.array(matchdata['lat']),np.array(matchdata['lon']))[0:2]).T # coordinates
     
@@ -206,8 +202,7 @@ def variogram_rrs_bands(matchdata, lag_bound, n_lags, bands):
     VG_data = {}
 
     for i in range(len(bands)):   
-        V = skg.Variogram(X, matchdata['rrs_' + str(bands[i])], fit_method ='lm',model = 'gaussian', n_lags = 12, maxlag = lag_bound, fit_sigma ='linear', normalize=True, use_nugget=True, Force=False) #  VG function
-        # V = skg.Variogram(X, matchdata['rrs_' + str(bands[i])], fit_method ='lm',model = 'exponential', n_lags = 12, maxlag = lag_bound,normalize=False, use_nugget=True,Force=False) #  VG function
+        V = skg.Variogram(X, matchdata['rrs_' + str(bands[i])], fit_method ='lm',model = 'gaussian', n_lags = n_lags, maxlag = lag_bound, fit_sigma ='linear', normalize=True, use_nugget=True, Force=False) #  VG function
         
 
         b = V.describe()['nugget'] # gaussian fit parameters to theoretical VG
@@ -222,14 +217,15 @@ def variogram_rrs_bands(matchdata, lag_bound, n_lags, bands):
         gamma_i_e = b + c0*(1 - np.exp(-(V.__dict__['_bins']*V.__dict__['_bins'])/(a*a))) # theoretical VG down-sampled to experimental bins - not currently used in output
        
  
-        nMAE = 100*np.mean(abs(np.sqrt(gamma_i_e) - np.sqrt(V.experimental))/np.sqrt(V.experimental)) # mean % error    - not nMAE               
+        nMAE = 100*np.mean(abs(np.sqrt(gamma_i_e) - np.sqrt(V.experimental))/np.sqrt(V.experimental)) # mean absolute % error    - not nMAE               
                                             
         x.append(x_i)
         gamma.append(gamma_i)
   
-        # Quality control flag:
+        # Quality control flag: < 0 inequalities test for convergence within gaussian model param bounds
+        # nMAE > 10 tests is screening based on mean absoulte % error 
         Q_i = 1
-        if b < 0 or c0 < 0 or a < 0 or nMAE > 12:   
+        if b < 0 or c0 < 0 or a < 0 or nMAE > 10:   #
             Q_i = 0
         Q.append(Q_i)
         
@@ -310,8 +306,6 @@ def variogram_bandplot_V2(x_e, gamma_e, x, gamma, mean_rrs, VG_data, date):
             plt.xlim(0,500)
          elif deployment == 'Plymouth2021':
             plt.ylim(0,0.001)  
-   
-    
         
          plt.rc('font', size=18)
          if i == 2 or i == 3:
@@ -352,7 +346,7 @@ def variogram_bandplot_V2(x_e, gamma_e, x, gamma, mean_rrs, VG_data, date):
 def var_plots():
     ' Spatial variance percentage at 300 m length scale'
 
-    plt.figure(figsize=(15,4),dpi=300);
+    plt.figure(figsize=(15,4),dpi=900);
    # plt.suptitle('Percentage of $R_{rs}$ variability due to spatial structure at OLCI pixel scale: ' + deployment_string)      
     rootgamma = np.sqrt(gamma)  
     colors = ['royalblue','limegreen','red','lightgray']        
@@ -360,7 +354,7 @@ def var_plots():
         plt.subplot(1,4, i +1)    
         #if deployment == 'Balaton2019':
         plt.title(str(bands_MSI[i]) + ' nm')
-        R_300 = (rootgamma[:,i, 300]-rootgamma[:,i, 0])/(rootgamma[:,i,300]) # fraction of variance resolved at 300 m 
+        R_300 = (rootgamma[:,i, 300] - rootgamma[:,i, 0])/(rootgamma[:,i,300]) # fraction of variance resolved at 300 m 
         R_300 = R_300[Q[:,i]==1]
         plt.xlabel('$f_{300}$ [$\%$]') 
         if i == 0:
@@ -373,9 +367,9 @@ def var_plots():
         elif deployment == 'Plymouth2021':
             plt.ylim(0,12)
         elif deployment == 'Balaton2019':
-            plt.ylim(0,5)
+            plt.ylim(0,6)
         ax=plt.gca()
-        plt.text(.05, .95,  subplotlab[i], ha='left', va='top', transform=ax.transAxes,fontsize=18) 
+        plt.text(.05, .95,  subplotlab[i], ha='left', va='top', transform=ax.transAxes,fontsize=19) 
         
     plt.tight_layout()  
     
@@ -393,17 +387,19 @@ def Nbins_plots():
     # Nbins = Nbins[Q[:,0]==1] + Nbins[Q[:,1]==1] + Nbins[Q[:,2]==1] + Nbins[Q[:,3]==1]
     bp = plt.boxplot(Nbins[Q[:,1]==1], showfliers=True,patch_artist=True, medianprops=dict(color='black'), whis=[10,90]) 
     plt.ylim(0,800)
-    plt.xlim(0.5, 13)
-    plt.xticks([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5,9.5,10.5,11.5,12.5], ['0','50','100','150', '200', '300', '300','350', '400', '450',  '500',  '550', '600'])
-    plt.xlabel('GSD: h')
+    plt.xlim(0.5, 15.5)
+   # plt.xticks([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5,9.5,10.5,11.5,12.5], ['0','50','100','150', '200', '300', '300','350', '400', '450',  '500',  '550', '600'])   
+    plt.xticks([1,2,3,4,5,6,7,8,9,10,11,12], ['1','2','3','4', '5', '6', '7','8', '9', '10',  '11',  '12'])
+    plt.xlabel('Lag bin index')
     plt.ylabel('Number of samples')
 
     return
 
+
 def CV_plots():
     ' intrinsic CV plot'
    
-    plt.figure(figsize=(15,4))
+    plt.figure(figsize=(15,4),dpi=900)
     # plt.suptitle('Intrinsic coefficient of variation: ' + deployment_string)      
     root_gamma = np.sqrt(gamma)             
     colors = ['royalblue','limegreen','red','lightgray']            
@@ -413,7 +409,7 @@ def CV_plots():
         #if deployment == 'Balaton2019':
         plt.title(str(bands_MSI[i]) + ' nm')
         CV_0 = 100*root_gamma[:,i, 0]/mean_rrs[:,i]
-        CV_0 = CV_0[Q[:,i]==1]
+        CV_0 = CV_0[Q[:,i]==1] # QC filter step
         plt.xlabel(r'$\tilde{CV}(0)$'  + '[%]')    
         print(CV_0)
         
@@ -421,16 +417,17 @@ def CV_plots():
         if i == 0:
             plt.ylabel('Frequency')   
          
+        print(len(CV_0))
         plt.hist(CV_0, bins = 9, edgecolor='k', color=colors[i],range=(0,45), label = 'Median =' + '\n' + str(int(np.round(np.median(CV_0)))) + '%')
         plt.legend(fontsize=14)
         plt.tight_layout()  
         plt.xlim(0,45)
         ax = plt.gca()
-        plt.text(.05, .95,  subplotlab[i], ha='left', va='top', transform=ax.transAxes,fontsize=18) 
+        plt.text(.05, .95,  subplotlab[i], ha='left', va='top', transform=ax.transAxes,fontsize=19) 
         if deployment == 'Lisbon2021':
-            plt.ylim(0,28)
+            plt.ylim(0,24)
         elif deployment == 'Plymouth2021':
-            plt.ylim(0,10)
+            plt.ylim(0,12)
         elif deployment == 'Balaton2019':
             plt.ylim(0,8)
        
@@ -454,62 +451,79 @@ def CV_plots():
 
 def range_plots():
     ' auto-correlation length plot'
-    
-    plt.figure(figsize=(15,4),dpi=900);
-    # plt.suptitle('$R_{rs}$ correlation length: ' + deployment_string)     
-    colors = ['royalblue','limegreen','red','lightgray'] 
-    
+
+    plt.figure(figsize=(15, 4), dpi=900)
+    # plt.suptitle('$R_{rs}$ correlation length: ' + deployment_string)
+    colors = ['royalblue', 'limegreen', 'red', 'lightgray']
+
     if deployment == 'Balaton2019':
-        hist_range = (0,1000)
-        n_bins = 8
+        hist_range = (0, 1000)
+        n_bins = 9
     else:
-        hist_range = (0,2000)
-        n_bins = 8
-    
-    
-    for i in range(len(bands_MSI)): 
-        plt.subplot(1,4, i +1)    
+        hist_range = (0, 3000)
+        n_bins = 9
+
+    for i in range(len(bands_MSI)):
+        plt.subplot(1, 4, i + 1)
        # if deployment == 'Balaton2019':
         plt.title(str(bands_MSI[i]) + ' nm')
-        a_i = np.array([VG_data[j]['a_' + str(bands_MSI[i])] for j in range(len(VG_data))])  #
+        a_i = np.array([VG_data[j]['a_' + str(bands_MSI[i])]
+                       for j in range(len(VG_data))])  #
+        a_i = a_i[Q[:,i]==1]
+        print(len(a_i))
         med_L = np.median(np.sqrt(3)*a_i)
-        #plt.ylim(0,6.5)
-        plt.hist(np.sqrt(3)*a_i,bins = n_bins,color= colors[i],edgecolor='k', range=hist_range, label = 'Median =' + '\n' + str(round(med_L)) + ' m')  # NOTE THIS DEFINES AC-length using sqrt(3 def)
-        if i == 0:
-            plt.ylabel('Frequency')   
-        plt.legend(fontsize=14)   
-        plt.xlabel('L [m]')
        
+        #plt.ylim(0,6.5)
+        plt.hist(np.sqrt(3)*a_i, bins=n_bins, color=colors[i], edgecolor='k', range=hist_range, label='Median =' + '\n' + str(
+            round(med_L)) + ' m')  # NOTE THIS DEFINES AC-length using sqrt(3 def)
+        if i == 0:
+            plt.ylabel('Frequency')
+        plt.legend(fontsize=14)
+        plt.xlabel('L [m]')
+
         if deployment == 'Lisbon2021':
-            plt.ylim(0,13)
-            plt.xlim(0,2000)
+            plt.ylim(0, 13)
+            plt.xlim(0, 3000)
         elif deployment == 'Plymouth2021':
-            plt.ylim(0,6)
-            plt.xlim(0,2000)
+            plt.ylim(0, 6)
+            plt.xlim(0, 3000)
         elif deployment == 'Balaton2019':
-            plt.ylim(0,8)
-            plt.xlim(0,1000)
-        ax=plt.gca()
-        plt.text(.05, .95,  subplotlab[i], ha='left', va='top', transform=ax.transAxes,fontsize=18) 
-    plt.tight_layout()  
-    
-    filename  =  fig_dir +  '/' + deployment + '_rangehist.png'
-    plt.savefig(filename,dpi=900)
-    
-    
+            plt.ylim(0, 6)
+            plt.xlim(0, 1000)
+        ax = plt.gca()
+        plt.text(.05, .95,  subplotlab[i], ha='left',
+                 va='top', transform=ax.transAxes, fontsize=19)
+    plt.tight_layout()
+
+    filename = fig_dir + '/' + deployment + '_rangehist.png'
+    plt.savefig(filename, dpi=900)
+
     return
 
 
 def pairwise_xt():
     'pairwise space and time plots'   
     
-    plt.figure(figsize=(6,10),dpi=300)
+    plt.rc('font', size=18)
+    plt.rcParams['legend.fontsize'] = 15
+    
+    plt.figure(figsize=(6,10),dpi=900)
     plt.suptitle(deployment_string)
     plt.subplot(2,1,1)
-    plt.hist(pairwise_time, weights=np.ones_like(pairwise_time)/len(pairwise_time),bins = 12,range=(0,6),color='royalblue',edgecolor='k')
-    plt.xlabel('Pairwise time difference [hours]')
+    if deployment == 'Balaton2019': # force axes within each deployment for consitency
+         xlimit = 6
+    elif deployment == 'Plymouth2021':
+         histrange = (0,36000)
+         xlimit = 6
+    elif deployment == 'Lisbon2021':
+         histrange = (0,8000)
+         xlimit = 4
+         
+    plt.hist(pairwise_time, weights=np.ones_like(pairwise_time)/len(pairwise_time),bins = 12,range=(0,6),color='royalblue',edgecolor='k', label = 'Median =' + '\n' + str((1/100)*np.round(np.median(100*np.asarray(pairwise_time)))) + ' decimal hrs')
+    plt.xlabel('Pairwise time difference [decimal hours]')
     plt.ylabel('Normalized frequency')
-    plt.xlim(0,6)
+    plt.xlim(0,xlimit)
+    plt.legend(fontsize=15)   
     
     plt.subplot(2,1,2)
     if deployment == 'Balaton2019': # force axes within each deployment for consitency
@@ -522,11 +536,12 @@ def pairwise_xt():
          histrange = (0,8000)
          xlimit = 8000
          
-    plt.hist(pairwise_distance, weights=np.ones_like(pairwise_distance)/len(pairwise_distance),bins = 12, range =histrange,color='gray',edgecolor='k')
+    plt.hist(pairwise_distance, weights=np.ones_like(pairwise_distance)/len(pairwise_distance),bins = 12, range =histrange,color='gray',edgecolor='k', label = 'Median =' + '\n' + str(round(np.median(pairwise_distance))) + ' m')
     plt.xlabel('Pairwise distance [m]')
     plt.ylabel('Normalized frequency')
     plt.tight_layout()  
     plt.xlim(0, xlimit)
+    plt.legend(fontsize=15)   
     
     filename  =  fig_dir +  '/' + deployment + '_xt.png'
     plt.savefig(filename,dpi=900)
@@ -670,376 +685,253 @@ def VGsummary_plots_V2():
 def plot_rrs_VG():
     ' Plots Root-var, CV-var and maps: as used in paper sub'
     
-    fig = plt.figure(figsize=(14,5))    
-    plt.suptitle(deployment_string + ': ' +  date)
-    plt.rc('font', size=16)
-    gs=GridSpec(6,20) # 2 rows, 3 columns
-   
-    lat = matchdata['lat']
-    lon = matchdata['lon']    
-    rrs = matchdata['rrs_' +  bands_MSI[1]]    
-   
-    if deployment == 'Balaton2019':
-        extent = [17.890, 17.902, 46.878,  46.890] 
-    elif deployment == 'Plymouth2021':
-         extent = [-4.30, -4.10, 50.20, 50.40] 
-    elif deployment == 'Lisbon2021':
-         extent = [-9.23, -9.11, 38.66, 38.73] 
-            
-    request=cimgt.Stamen('terrain-background')
-    ax = fig.add_subplot(gs[:,14:20], projection=ccrs.PlateCarree())
-    ax.set_extent(extent, ccrs.Geodetic())
-
-    if deployment == 'Balaton2019':
-       ax.add_image(request,13)
-    elif deployment == 'Plymouth2021':
-       ax.add_image(request,11)
-    elif deployment == 'Lisbon2021':
-       ax.add_image(request,13)
-     
-    # gridlines
-    gl = ax.gridlines(draw_labels=True)
-    gl.xlabels_top = gl.ylabels_right = False
-    gl.xformatter =  LONGITUDE_FORMATTER
-    gl.xlabel_style = {'size': 12,  'rotation': 0}
-    gl.ylabel_style = {'size': 12,  'rotation': 0}
-    lon_formatter = LongitudeFormatter(zero_direction_label=True)
-    lat_formatter = LatitudeFormatter()
-    ax.xaxis.set_major_formatter(lon_formatter)
-    ax.tick_params(labelsize = 11)
+    if Q_j[1] == 1: # selects VG that has passed QC
+      
+        fig = plt.figure(figsize=(16,5))    
+        plt.suptitle(deployment_string + ': ' +  date)
+        plt.rc('font', size=18)
+        gs=GridSpec(6,20) # 2 rows, 3 columns
+       
+        lat = matchdata['lat']
+        lon = matchdata['lon']    
+        rrs = matchdata['rrs_' +  bands_MSI[1]]    
+       
+        if deployment == 'Balaton2019':
+            extent = [17.890, 17.902, 46.878,  46.890] 
+        elif deployment == 'Plymouth2021':
+             extent = [-4.30, -4.10, 50.20, 50.40] 
+        elif deployment == 'Lisbon2021':
+             extent = [-9.23, -9.11, 38.66, 38.73] 
+                
+        request=cimgt.Stamen('terrain-background')
+        ax = fig.add_subplot(gs[:,14:20], projection=ccrs.PlateCarree())
+        ax.set_extent(extent, ccrs.Geodetic())
     
-    plt.scatter(lon,lat, c = rrs, cmap ='viridis', vmin = np.percentile(rrs,5), vmax = np.percentile(rrs,95),  transform=ccrs.PlateCarree())
-    if deployment != 'Plymouth2021':
-        cbar = plt.colorbar(location='bottom')
-    else:
-        cbar = plt.colorbar(location='bottom')
-    cbar.set_label('$R_{rs}$(560) [sr$^{-1}$]')  
-    
-    
-    plt.legend(fontsize=12) 
-    if deployment == 'Balaton2019':
-        scale_bar(ax, (0.1, 0.1), 500, metres_per_unit=1, unit_name='m')
-    elif deployment == 'Plymouth2021':
-        scale_bar(ax, (0.1, 0.8), 5000, metres_per_unit=1, unit_name='m')
-    elif deployment == 'Lisbon2021':
-        scale_bar(ax, (0.1, 0.8), 2000, metres_per_unit=1, unit_name='m') 
- 
-    # ax = fig.add_subplot(gs[0:3,0:4])
-    # plt.plot(x_j[0], gamma_j[1], color='green')
-    # plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
-    # plt.scatter(x_e_j[1],gamma_e_j[1], color='green')
-    
-   
-    L = abs(np.sqrt(3)*VG_data_j['a_' + bands_MSI[1]]) # L
-    root_C_0 = np.sqrt(VG_data_j['b_' + bands_MSI[1]]) # sqrt c_0
-    root_C_infty= np.sqrt(VG_data_j['c0_' + bands_MSI[1]] + VG_data_j['b_' + bands_MSI[1]])    
-
-    ax = fig.add_subplot(gs[:,0:5])
-    
-    plt.plot(x_j[0], np.sqrt(gamma_j[1]), color='green', label = 'Fit error = '  + str(round(VG_data_j['nMAE_' + bands_MSI[1]],1)) + '$\%$' + '\n' 
-             +  '$\sqrt{C_{0}}$ = ' + f'{root_C_0:.2}' + ' sr$^{-1}$' + '\n' 
-             +  '$\sqrt{C_{\infty}}$  = ' + f'{root_C_infty:.2}' + ' sr$^{-1}$' + '\n'                                                                       
-             +  'L = ' + str(round(L)) + ' m' )
-
-    
-  #  plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
-    plt.legend(loc='lower right')
-    plt.scatter(x_e_j[1],np.sqrt(gamma_e_j[1]), color='green')
-    plt.gca().set_ylim(bottom = 0)
-    plt.ylabel(r'$\sqrt{\gamma(h)}$   [sr$^{-1}$]')
-    if deployment == 'Balaton2019':
-        plt.xlim(0,600)
-        plt.ylim(0,0.009)
-    else:
-        plt.xlim(0,1600)
-        plt.xticks([0,500,1000,1500])
+        if deployment == 'Balaton2019':
+           ax.add_image(request,13)
+        elif deployment == 'Plymouth2021':
+           ax.add_image(request,11)
+        elif deployment == 'Lisbon2021':
+           ax.add_image(request,13)
+         
+        # gridlines
+        gl = ax.gridlines(draw_labels=True)
+        gl.xlabels_top = gl.ylabels_right = False
+        gl.xformatter =  LONGITUDE_FORMATTER
+        gl.xlabel_style = {'size': 14,  'rotation': 0}
+        gl.ylabel_style = {'size': 14,  'rotation': 0}
+        lon_formatter = LongitudeFormatter(zero_direction_label=True)
+        lat_formatter = LatitudeFormatter()
+        ax.xaxis.set_major_formatter(lon_formatter)
+        ax.tick_params(labelsize = 14)
         
-    if deployment == 'Plymouth2021':
-        plt.ylim(0,0.0008)
-    elif deployment == 'Lisbon2021':
-        plt.ylim(0,0.0030)
-
-    plt.xlabel('$h$ [m]')
-    
-    ax = fig.add_subplot(gs[:,7:12])
-    
-
-    plt.plot(x_j[0], 100*np.sqrt(gamma_j[1])/(mean_rrs_j[1]), color='green', label =    r'$\tilde{CV}(0)$' +' = '  +  str(round(100*(np.sqrt(gamma_j[1][0])/mean_rrs_j[1]),1)) +   ' %'  + '\n'  +  r'$\tilde{CV}(300)$' +' = '  +  str(round(100*(np.sqrt(gamma_j[1][301])/mean_rrs_j[1]),1)) +   ' %'  + '\n'  
-             '$f_{300}$ = ' + str(round(100*(np.sqrt(gamma_j[1][301])-np.sqrt(gamma_j[1][0]))/np.sqrt(gamma_j[1][0]),1)) +  ' %'
-             )
-    
-    
-    #  plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
-    plt.legend(loc='lower right')
-   # plt.scatter(x_e_j[1],100*np.sqrt(gamma_e_j[1])/(mean_rrs_j), color='green')
-    plt.gca().set_ylim(bottom = 0)
-    plt.ylabel(r'$\tilde{CV}(h) = 100\sqrt{\gamma(h)}/\bar{R}_{rs}$   [%]')   
-    if deployment == 'Balaton2019':
-        plt.xlim(0,600)
-        plt.ylim(0,16)
-    else:
-        plt.xlim(0,1600)
-        plt.xticks([0,500,1000,1500])
-
-    plt.xlabel('$h$ [m]')
-
-    if deployment == 'Plymouth2021':
-        plt.ylim(0,16)
-    elif deployment == 'Lisbon2021':
-        plt.ylim(0,25)
-    # plt.title ('$R_{rs}$('+ bands[i] + ') [sr$^{-1}$]')
-    # calculate median fit parameters
-    plt.tight_layout(pad=1.6)
-
-    filename  =  fig_dir +  '/' + deployment + '_VG_annotated.png'
-    plt.savefig(filename,dpi=900)
-
-    return
-
-
-def plot_rrs_VG_PS_red():
-   
-    fig = plt.figure(figsize=(14,5))    
-    plt.suptitle(deployment_string + ': ' +  date)
-    plt.rc('font', size=16)
-    gs=GridSpec(6,20) # 2 rows, 3 columns
-   
-    lat = matchdata['lat']
-    lon = matchdata['lon']    
-    rrs = matchdata['rrs_' +  bands_MSI[2]]    
-   
-    if deployment == 'Balaton2019':
-        extent = [17.890, 17.902, 46.878,  46.890] 
-    elif deployment == 'Plymouth2021':
-         extent = [-4.40, -4.30, 50.20, 50.40] 
-    elif deployment == 'Lisbon2021':
-         extent = [-9.23, -9.11, 38.66, 38.73] 
-            
-    request=cimgt.Stamen('terrain-background')
-    ax = fig.add_subplot(gs[:,14:20], projection=ccrs.PlateCarree())
-    ax.set_extent(extent, ccrs.Geodetic())
-
-    if deployment == 'Balaton2019':
-       ax.add_image(request,13)
-    elif deployment == 'Plymouth2021':
-       ax.add_image(request,11)
-    elif deployment == 'Lisbon2021':
-       ax.add_image(request,13)
-    elif deployment == 'Danube2021': 
-       ax.add_image(request,11)
-     
-    # gridlines
-    gl = ax.gridlines(draw_labels=True)
-    gl.xlabels_top = gl.ylabels_right = False
-    gl.xformatter =  LONGITUDE_FORMATTER
-    gl.xlabel_style = {'size': 12,  'rotation': 0}
-    gl.ylabel_style = {'size': 12,  'rotation': 0}
-    lon_formatter = LongitudeFormatter(zero_direction_label=True)
-    lat_formatter = LatitudeFormatter()
-    ax.xaxis.set_major_formatter(lon_formatter)
-    ax.tick_params(labelsize = 11)
-    
-    plt.scatter(lon,lat, c = rrs, cmap ='viridis', vmin = np.percentile(rrs,5), vmax = np.percentile(rrs,95),  transform=ccrs.PlateCarree())
-    if deployment != 'Plymouth2021':
-        cbar = plt.colorbar(location='bottom')
-    else:
-        cbar = plt.colorbar(location='bottom')
-    cbar.set_label('$R_{rs}$(665) [sr$^{-1}$]')  
-    
-    
-    plt.legend(fontsize=12) 
-    if deployment == 'Balaton2019':
-        scale_bar(ax, (0.1, 0.1), 500, metres_per_unit=1, unit_name='m')
-    elif deployment == 'Plymouth2021':
-        scale_bar(ax, (0.1, 0.8), 5000, metres_per_unit=1, unit_name='m')
-    elif deployment == 'Lisbon2021':
-        scale_bar(ax, (0.1, 0.8), 2000, metres_per_unit=1, unit_name='m') 
-    elif deployment == 'Danube2021':
-        scale_bar(ax, (0.1, 0.8), 5000, metres_per_unit=1, unit_name='m') 
-    
-    # ax = fig.add_subplot(gs[0:3,0:4])
-    # plt.plot(x_j[0], gamma_j[1], color='green')
-    # plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
-    # plt.scatter(x_e_j[1],gamma_e_j[1], color='green')
-    
-   
-    L = abs(np.sqrt(3)*VG_data_j['a_' + bands_MSI[2]]) # L
-    root_C_0 = np.sqrt(VG_data_j['b_' + bands_MSI[2]]) # sqrt c_0
-    root_C_infty= np.sqrt(VG_data_j['c0_' + bands_MSI[2]] + VG_data_j['b_' + bands_MSI[2]])    
-
-    ax = fig.add_subplot(gs[:,0:5])
-    
-    plt.plot(x_j[0], np.sqrt(gamma_j[2]), color='red', label = 'Fit error = '  + str(round(VG_data_j['nMAE_' + bands_MSI[2]],1)) + '$\%$' + '\n' 
-             +  '$\sqrt{C_{0}}$ = ' + f'{root_C_0:.2}' + ' sr$^{-1}$' + '\n' 
-             +  '$\sqrt{C_{\infty}}$  = ' + f'{root_C_infty:.2}' + ' sr$^{-1}$' + '\n'                                                                       
-             +  'L = ' + str(round(L)) + ' m' )
-
-    
-  #  plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
-    plt.legend(loc='lower right')
-    plt.scatter(x_e_j[2],np.sqrt(gamma_e_j[2]), color='red')
-    plt.gca().set_ylim(bottom = 0)
-    plt.ylabel(r'$\sqrt{\gamma(h)}$  [sr$^{-1}$]')
-    if deployment == 'Balaton2019':
-        plt.xlim(0,600)
-        plt.ylim(0,0.009)
-    else:
-        plt.xlim(0,1600)
-        plt.xticks([0,500,1000,1500])
-
-    plt.xlabel('$h$ [m]')
-    
-    ax = fig.add_subplot(gs[:,7:12])
-    
-
-    plt.plot(x_j[0], 100*np.sqrt(gamma_j[2])/(mean_rrs_j[2]), color='red', label =    r'$\tilde{CV}(0)$' +' = '  +  str(round(100*(np.sqrt(gamma_j[2][0])/mean_rrs_j[2]),1)) +   ' [%]'  + '\n'  +  r'$\tilde{CV}(300)$' +' = '  +  str(round(100*(np.sqrt(gamma_j[2][301])/mean_rrs_j[2]),1)) +   ' [%]'  + '\n'  
-             '$f_{300}$ = ' + str(round(100*(np.sqrt(gamma_j[2][301])-np.sqrt(gamma_j[2][0]))/np.sqrt(gamma_j[2][0]),1)) +  ' [%]'
-             )
-    
-    
-    #  plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
-    plt.legend(loc='lower right')
-   # plt.scatter(x_e_j[1],100*np.sqrt(gamma_e_j[1])/(mean_rrs_j), color='green')
-    plt.gca().set_ylim(bottom = 0)
-    plt.ylabel(r'$\tilde{CV}(h) = 100\sqrt{\gamma(h)}/\bar{R}_{rs}$   [%]')   
-    if deployment == 'Balaton2019':
-        plt.xlim(0,600)
-        plt.ylim(0,16)
-    else:
-        plt.xlim(0,1600)
-        plt.xticks([0,500,1000,1500])
+        plt.scatter(lon,lat, c = rrs, cmap ='viridis', vmin = np.percentile(rrs,5), vmax = np.percentile(rrs,95),  transform=ccrs.PlateCarree())
+        if deployment != 'Plymouth2021':
+            cbar = plt.colorbar(location='bottom')
+        else:
+            cbar = plt.colorbar(location='bottom')
+        cbar.set_label('$R_{rs}$(560) [sr$^{-1}$]')  
         
-    if deployment == 'Plymouth2021':
-        plt.ylim(0,0.0008)
+        
+        plt.legend(fontsize=10) 
+        if deployment == 'Balaton2019':
+            scale_bar(ax, (0.1, 0.1), 500, metres_per_unit=1, unit_name='m')
+        elif deployment == 'Plymouth2021':
+            scale_bar(ax, (0.1, 0.8), 5000, metres_per_unit=1, unit_name='m')
+        elif deployment == 'Lisbon2021':
+            scale_bar(ax, (0.1, 0.8), 2000, metres_per_unit=1, unit_name='m') 
+     
+        # ax = fig.add_subplot(gs[0:3,0:4])
+        # plt.plot(x_j[0], gamma_j[1], color='green')
+        # plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
+        # plt.scatter(x_e_j[1],gamma_e_j[1], color='green')
+        
+       
+        L = abs(np.sqrt(3)*VG_data_j['a_' + bands_MSI[1]]) # L
+        root_C_0 = np.sqrt(VG_data_j['b_' + bands_MSI[1]]) # sqrt c_0
+        root_C_infty= np.sqrt(VG_data_j['c0_' + bands_MSI[1]] + VG_data_j['b_' + bands_MSI[1]])    
+    
+        ax = fig.add_subplot(gs[:,0:5])
+        
+       
+        plt.plot(x_j[0], np.sqrt(gamma_j[1]), color='green', label = 'Fit error = '  + str(round(VG_data_j['nMAE_' + bands_MSI[1]],1)) + '$\%$' + '\n' 
+                 +  '$\sqrt{C_{0}}$ = ' + f'{root_C_0:.2}' + ' sr$^{-1}$' + '\n' 
+                 +  '$\sqrt{C_{\infty}}$  = ' + f'{root_C_infty:.2}' + ' sr$^{-1}$' + '\n'                                                                       
+                 +  'L = ' + str(round(L)) + ' m' )
+    
+        
+      #  plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
+        plt.legend(loc='lower right')
+        plt.scatter(x_e_j[1],np.sqrt(gamma_e_j[1]), color='green')
+        plt.gca().set_ylim(bottom = 0)
+        plt.ylabel(r'$\sqrt{\gamma(h)}$   [sr$^{-1}$]')
+        if deployment == 'Balaton2019':
+            plt.xlim(0,600)
+            plt.ylim(0,0.009)
+        else:
+            plt.xlim(0,1600)
+            plt.xticks([0,500,1000,1500])
+            
+        if deployment == 'Plymouth2021':
+            plt.ylim(0,0.0008)
+        elif deployment == 'Lisbon2021':
+            plt.ylim(0,0.0030)
+    
+        plt.xlabel('$h$ [m]')
+        
+        ax = fig.add_subplot(gs[:,7:12])
+        
+    
+        plt.plot(x_j[0], 100*np.sqrt(gamma_j[1])/(mean_rrs_j[1]), color='green', label =    r'$\tilde{CV}(0)$' +' = '  +  str(round(100*(np.sqrt(gamma_j[1][0])/mean_rrs_j[1]),1)) +   ' %'  + '\n'  +  r'$\tilde{CV}(300)$' +' = '  +  str(round(100*(np.sqrt(gamma_j[1][301])/mean_rrs_j[1]),1)) +   ' %'  + '\n'  
+                 '$f_{300}$ = ' + str(round(100*(np.sqrt(gamma_j[1][301])-np.sqrt(gamma_j[1][0]))/np.sqrt(gamma_j[1][0]),1)) +  ' %'
+                 )
+        
+        
+        #  plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
+        plt.legend(loc='lower right')
+       # plt.scatter(x_e_j[1],100*np.sqrt(gamma_e_j[1])/(mean_rrs_j), color='green')
+        plt.gca().set_ylim(bottom = 0)
+        plt.ylabel(r'$\tilde{CV}(h) = 100\sqrt{\gamma(h)}/\bar{R}_{rs}$   [%]')   
+        if deployment == 'Balaton2019':
+            plt.xlim(0,600)
+            plt.ylim(0,16)
+        else:
+            plt.xlim(0,1600)
+            plt.xticks([0,500,1000,1500])
+    
+        plt.xlabel('$h$ [m]')
+    
+        if deployment == 'Plymouth2021':
+            plt.ylim(0,16)
+        elif deployment == 'Lisbon2021':
+            plt.ylim(0,25)
+        # plt.title ('$R_{rs}$('+ bands[i] + ') [sr$^{-1}$]')
+        # calculate median fit parameters
+        plt.tight_layout(pad=1.6)
+    
 
-    plt.xlabel('$h$ [m]')
-
-    # plt.title ('$R_{rs}$('+ bands[i] + ') [sr$^{-1}$]')
-    # calculate median fit parameters
-    plt.tight_layout(pad=1.6)
-
-    filename  =  fig_dir +  '/' + deployment + '_VG_annotated.png'
-    plt.savefig(filename,dpi=900)
+        filename  =  fig_dir +  '/' + deployment + '_VG_annotated_'  +str(date) +'.png'
+        plt.savefig(filename,dpi=900)
 
     return
 
 
 def plot_rrs_VG_PS_blue():
-       
-    fig = plt.figure(figsize=(14,5))    
-    plt.suptitle(deployment_string + ': ' +  date)
-    plt.rc('font', size=16)
-    gs=GridSpec(6,20) # 2 rows, 3 columns
-   
+
+    fig = plt.figure(figsize=(16,5))    
+    plt.suptitle(deployment_string + ': ' + date)
+    plt.rc('font', size=18)
+    gs = GridSpec(6, 20)  # 2 rows, 3 columns
+
     lat = matchdata['lat']
-    lon = matchdata['lon']    
-    rrs = matchdata['rrs_' +  bands_MSI[0]]    
-   
+    lon = matchdata['lon']
+    rrs = matchdata['rrs_' + bands_MSI[0]]
+
     if deployment == 'Balaton2019':
-        extent = [17.890, 17.902, 46.878,  46.890] 
+        extent = [17.890, 17.902, 46.878,  46.890]
     elif deployment == 'Plymouth2021':
-         extent = [-4.30, -4.10, 50.20, 50.40] 
+        extent = [-4.30, -4.10, 50.20, 50.40]
     elif deployment == 'Lisbon2021':
-         extent = [-9.23, -9.11, 38.66, 38.73] 
-            
-    request=cimgt.Stamen('terrain-background')
-    ax = fig.add_subplot(gs[:,14:20], projection=ccrs.PlateCarree())
+        extent = [-9.23, -9.11, 38.66, 38.73]
+
+    request = cimgt.Stamen('terrain-background')
+    ax = fig.add_subplot(gs[:, 13:20], projection=ccrs.PlateCarree())
     ax.set_extent(extent, ccrs.Geodetic())
 
     if deployment == 'Balaton2019':
-       ax.add_image(request,13)
+       ax.add_image(request, 13)
     elif deployment == 'Plymouth2021':
-       ax.add_image(request,11)
+       ax.add_image(request, 11)
     elif deployment == 'Lisbon2021':
-       ax.add_image(request,13)
-    elif deployment == 'Danube2021': 
-       ax.add_image(request,11)
-     
+       ax.add_image(request, 13)
+    elif deployment == 'Danube2021':
+       ax.add_image(request, 11)
+
     # gridlines
     gl = ax.gridlines(draw_labels=True)
     gl.xlabels_top = gl.ylabels_right = False
-    gl.xformatter =  LONGITUDE_FORMATTER
-    gl.xlabel_style = {'size': 12,  'rotation': 0}
-    gl.ylabel_style = {'size': 12,  'rotation': 0}
+    gl.xformatter = LONGITUDE_FORMATTER
+    gl.xlabel_style = {'size': 14,  'rotation': 0}
+    gl.ylabel_style = {'size': 14,  'rotation': 0}
     lon_formatter = LongitudeFormatter(zero_direction_label=True)
     lat_formatter = LatitudeFormatter()
     ax.xaxis.set_major_formatter(lon_formatter)
-    ax.tick_params(labelsize = 11)
-    
-    plt.scatter(lon,lat, c = rrs, cmap ='viridis', vmin = np.percentile(rrs,5), vmax = np.percentile(rrs,95),  transform=ccrs.PlateCarree())
+    ax.tick_params(labelsize=14)
+
+    plt.scatter(lon, lat, c=rrs, cmap='viridis', vmin=np.percentile(
+        rrs, 5), vmax=np.percentile(rrs, 95),  transform=ccrs.PlateCarree())
     if deployment != 'Plymouth2021':
         cbar = plt.colorbar(location='bottom')
     else:
         cbar = plt.colorbar(location='bottom')
-    cbar.set_label('$R_{rs}$(443) [sr$^{-1}$]')  
-    
-    
-    plt.legend(fontsize=12) 
+    cbar.set_label('$R_{rs}$(443) [sr$^{-1}$]')
+
+    plt.legend(fontsize=10)
     if deployment == 'Balaton2019':
         scale_bar(ax, (0.1, 0.1), 500, metres_per_unit=1, unit_name='m')
     elif deployment == 'Plymouth2021':
         scale_bar(ax, (0.1, 0.8), 5000, metres_per_unit=1, unit_name='m')
     elif deployment == 'Lisbon2021':
-        scale_bar(ax, (0.1, 0.8), 2000, metres_per_unit=1, unit_name='m') 
+        scale_bar(ax, (0.1, 0.8), 2000, metres_per_unit=1, unit_name='m')
     elif deployment == 'Danube2021':
-        scale_bar(ax, (0.1, 0.8), 5000, metres_per_unit=1, unit_name='m') 
-    
+        scale_bar(ax, (0.1, 0.8), 5000, metres_per_unit=1, unit_name='m')
+
     # ax = fig.add_subplot(gs[0:3,0:4])
     # plt.plot(x_j[0], gamma_j[1], color='green')
     # plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
     # plt.scatter(x_e_j[1],gamma_e_j[1], color='green')
-    
-   
-    L = abs(np.sqrt(3)*VG_data_j['a_' + bands_MSI[0]]) # L
-    root_C_0 = np.sqrt(VG_data_j['b_' + bands_MSI[0]]) # sqrt c_0
-    root_C_infty= np.sqrt(VG_data_j['c0_' + bands_MSI[0]] + VG_data_j['b_' + bands_MSI[0]])    
 
-    ax = fig.add_subplot(gs[:,0:5])
-    
-    plt.plot(x_j[0], np.sqrt(gamma_j[0]), color='blue', label = 'Fit error = '  + str(round(VG_data_j['nMAE_' + bands_MSI[0]],1)) + '$\%$' + '\n' 
-             +  '$\sqrt{C_{0}}$ = ' + f'{root_C_0:.2}' + ' sr$^{-1}$' + '\n' 
-             +  '$\sqrt{C_{\infty}}$  = ' + f'{root_C_infty:.2}' + ' sr$^{-1}$' + '\n'                                                                       
-             +  'L = ' + str(round(L)) + ' m' )
+    L = abs(np.sqrt(3)*VG_data_j['a_' + bands_MSI[0]])  # L
+    root_C_0 = np.sqrt(VG_data_j['b_' + bands_MSI[0]])  # sqrt c_0
+    root_C_infty = np.sqrt(
+        VG_data_j['c0_' + bands_MSI[0]] + VG_data_j['b_' + bands_MSI[0]])
 
-    
+    ax = fig.add_subplot(gs[:, 0:5])
+
+    plt.plot(x_j[0], np.sqrt(gamma_j[0]), color='blue', label='Fit error = ' + str(round(VG_data_j['nMAE_' + bands_MSI[0]], 1)) + '$\%$' + '\n'
+             + '$\sqrt{C_{0}}$ = ' + f'{root_C_0:.2}' + ' sr$^{-1}$' + '\n'
+             + '$\sqrt{C_{\infty}}$  = ' +
+             f'{root_C_infty:.2}' + ' sr$^{-1}$' + '\n'
+             + 'L = ' + str(round(L)) + ' m')
+
   #  plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
     plt.legend(loc='lower right')
-    plt.scatter(x_e_j[0],np.sqrt(gamma_e_j[0]), color='blue')
-    plt.gca().set_ylim(bottom = 0)
+    plt.scatter(x_e_j[0], np.sqrt(gamma_e_j[0]), color='blue')
+    plt.gca().set_ylim(bottom=0)
     plt.ylabel(r'$\sqrt{\gamma(h)}$   [sr$^{-1}$]')
     if deployment == 'Balaton2019':
-        plt.xlim(0,600)
-        plt.ylim(0,0.009)
+        plt.xlim(0, 600)
+        plt.ylim(0, 0.009)
     else:
-        plt.xlim(0,1600)
-        plt.xticks([0,500,1000,1500])
-    
+        plt.xlim(0, 1600)
+        plt.xticks([0, 500, 1000, 1500])
+
     if deployment == 'Plymouth2021':
-        plt.ylim(0,0.0008)
+        plt.ylim(0, 0.0008)
 
     plt.xlabel('$h$ [m]')
-    
-    ax = fig.add_subplot(gs[:,7:12])
-    
 
-    plt.plot(x_j[0], 100*np.sqrt(gamma_j[0])/(mean_rrs_j[0]), color='blue', label =    r'$\tilde{CV}(0)$' +' = '  +  str(round(100*(np.sqrt(gamma_j[0][0])/mean_rrs_j[0]),1)) +   ' %'  + '\n'  +  r'$\tilde{CV}(300)$' +' = '  +  str(round(100*(np.sqrt(gamma_j[0][301])/mean_rrs_j[0]),1)) +   ' %'  + '\n'  
-             '$f_{300}$ = ' + str(round(100*(np.sqrt(gamma_j[0][301])-np.sqrt(gamma_j[0][0]))/np.sqrt(gamma_j[0][0]),1)) +  ' %'
+    ax = fig.add_subplot(gs[:, 7:12])
+
+    plt.plot(x_j[0], 100*np.sqrt(gamma_j[0])/(mean_rrs_j[0]), color='blue', label=r'$\tilde{CV}(0)$' + ' = ' + str(round(100*(np.sqrt(gamma_j[0][0])/mean_rrs_j[0]), 1)) + ' %' + '\n' + r'$\tilde{CV}(300)$' + ' = ' + str(round(100*(np.sqrt(gamma_j[0][301])/mean_rrs_j[0]), 1)) + ' %' + '\n'
+             '$f_{300}$ = ' + str(round(100*(np.sqrt(gamma_j[0][301])-np.sqrt(
+                 gamma_j[0][0]))/np.sqrt(gamma_j[0][0]), 1)) + ' %'
              )
-       
+
    # plt.legend(loc='lower left', bbox_to_anchor=(-1, 0.5))
     plt.legend(loc='lower right')
    # plt.scatter(x_e_j[1],100*np.sqrt(gamma_e_j[1])/(mean_rrs_j), color='green')
-    plt.gca().set_ylim(bottom = 0)
-    plt.ylabel(r'$\tilde{CV}(h) = 100\sqrt{\gamma(h)}/\bar{R}_{rs}$   [%]')   
+    plt.gca().set_ylim(bottom=0)
+    plt.ylabel(r'$\tilde{CV}(h) = 100\sqrt{\gamma(h)}/\bar{R}_{rs}$   [%]')
     if deployment == 'Balaton2019':
-        plt.xlim(0,600)
-        plt.ylim(0,16)
+        plt.xlim(0, 600)
+        plt.ylim(0, 16)
     else:
-        plt.xlim(0,1600)
-        plt.xticks([0,500,1000,1500])
+        plt.xlim(0, 1600)
+        plt.xticks([0, 500, 1000, 1500])
 
     if deployment == 'Plymouth2021':
-        plt.ylim(0,16)
+        plt.ylim(0, 16)
 
     plt.xlabel('$h$ [m]')
 
@@ -1047,8 +939,9 @@ def plot_rrs_VG_PS_blue():
     # calculate median fit parameters
     plt.tight_layout(pad=1.6)
 
-    filename  =  fig_dir +  '/' + deployment + '_VG_annotated.png'
-    plt.savefig(filename,dpi=900)
+    filename = fig_dir + '/' + deployment + \
+        '_VG_annotated_blue' + str(date) + '.png'
+    plt.savefig(filename, dpi=900)
 
     return
 
@@ -1056,19 +949,17 @@ def plot_rrs_VG_PS_blue():
 if __name__ == '__main__':
     
     # bands_MSI  = ma.array(['443', '490', '560', '665', '705', '740', '783', '842', '865'], mask = [False, True, False, False, True, True, False, True, True])
-    bands_MSI  = ['443', '560', '665', '783'] # just consider 4 target bands
+    bands_MSI  = ['443', '560', '665', '783'] # just consider 4 target bands - these match band centers of MSI
 
-    # deployment = 'Balaton2019' # Initalize VG paramters for each deployment
-    # deployment = 'Plymouth2021'
-    deployment = 'Lisbon2021'
+    # deployment = 'Balaton2019' # Initialize parameters for each deployment  - select one of 3 configs
+    deployment = 'Plymouth2021'
+    # deployment = 'Lisbon2021'
   
-    fig_dir = '/users/rsg/tjor/monocle/sat_val/Paperplots/'
+    fig_dir = '/users/rsg/tjor/monocle/sat_val/Paperplots_resub_0923/'
     
-    if deployment == 'Balaton2019':
-        # lag_bound = 480
-        # n_lags = 12
+    if deployment == 'Balaton2019': 
         lag_bound = 600 # 
-        n_lags = 15
+        n_lags = 12
         path_matches = '/users/rsg/tjor/monocle/sat_val/Balaton2019matches/'
         files_matches = sorted(glob.glob(os.path.join(path_matches, 'matches_3hr_v2_*')))  
         path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Balaton2019_3C/'
@@ -1079,34 +970,30 @@ if __name__ == '__main__':
         plot_loc = 1      
         plot_index = 26
     elif deployment == 'Plymouth2021':
-        # lag_bound = 600
-        # n_lags = 12
         lag_bound = 1500
-        n_lags = 15
+        n_lags = 12
         path_matches = '/users/rsg/tjor/monocle/sat_val/Plymouth2021matches/'
         files_matches = sorted(glob.glob(os.path.join(path_matches, 'matches_3hr_v2_*')))  #
         path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Plymouth2021_3C/'
         meta_files = sorted(glob.glob(os.path.join(path_sr, '*data*')))
         deployment_string = 'Western Channel'
-        min_points = 150
+        min_points = 100
         subplotlab = ['E', 'F', 'G', 'H']
         plot_loc = 4
-        plot_index = 81 # 32 also looks good
+        plot_index = 81 
     elif deployment == 'Lisbon2021':
         lag_bound = 1500
-        n_lags = 15
+        n_lags = 12
         path_matches = '/users/rsg/tjor/monocle/sat_val/Lisbon2021matches/'
-        files_matches = sorted(glob.glob(os.path.join(path_matches, 'matches_3hr_v2_*')))  #
+        files_matches = sorted(glob.glob(os.path.join(path_matches, 'matches_2hr_v2_*')))  #
         path_sr = '/users/rsg/tjor/monocle_network/sorad_rrs_alldeployments/hyperspectral/Lisbon2021_3C/'
         meta_files = sorted(glob.glob(os.path.join(path_sr, '*data*')))
         deployment_string = 'Tagus Estuary'
         subplotlab = ['I', 'J', 'K', 'L']
-        min_points = 150
+        min_points = 100
         plot_loc = 1
         plot_index = 48 # 2
-        
-    pathfigs = '/users/rsg/tjor/monocle/sat_val/outputfigs/'       
-    fig_dir = '/users/rsg/tjor/monocle/sat_val/Paperplots_29_03/'
+         
 
     # intiialize data lists    
     gamma = []    # theoretical semi-variance (fit to model)
@@ -1122,15 +1009,15 @@ if __name__ == '__main__':
     pairwise_distance =[]
     
     # loop over all data files in deplployment
-    for j in range(0,len(meta_files),1): # j for day index
+    for j in range(len(meta_files)): # j for day index
     
         matchdata = pd.read_csv(files_matches[j]) 
         date = str(files_matches[j])[-14:-4] 
         print(len(matchdata))
         
-        if len(matchdata) > min_points: # and j != 18 and  j != 89: # and  j != 49 and  j != 89:)
-            r_j, x_e_j, gamma_e_j, x_j, gamma_j, Q_j, VG_data_j, Nbins_j = variogram_rrs_bands(matchdata,lag_bound,n_lags,bands_MSI) # calculate VGS                
-            mean_rrs_j = rrs_band_mean(matchdata, bands_MSI)  # calculated survey-mean Rrs
+        if len(matchdata) > min_points:
+            r_j, x_e_j, gamma_e_j, x_j, gamma_j, Q_j, VG_data_j, Nbins_j = variogram_rrs_bands(matchdata,lag_bound,n_lags,bands_MSI) # function used to calculate VG in each band   
+            mean_rrs_j = rrs_band_mean(matchdata, bands_MSI)  # cacculates survey-mean Rrs
       
             # append VG output to lists
             gamma_e.append(gamma_e_j)
@@ -1141,22 +1028,25 @@ if __name__ == '__main__':
             R.append(r_j)
             Nbins.append(Nbins_j)
             
-            # plot rrs variogram
+            # options to plot rrs variograms
             plot_rrs_VG()
+            # plot_rrs_VG_PS_blue()
             # variogram_bandplot_V2(x_e_j, gamma_e_j, x_j, gamma_j, mean_rrs_j, VG_data_j, date)   - superseeded
-            # plot_data_map_V2(matchdata, bands_MSI, date, map_resolution=12) - siperseeded
+            # plot_data_map_V2(matchdata, bands_MSI, date, map_resolution=12) - superseeded
             
             # pairwise time differences
             time_cell_hours = matchdata['time_cell']/(60*60)
             pairwise_time_j = sklearn.metrics.pairwise_distances(np.array(time_cell_hours).reshape(-1,1)).flatten() 
-            pairwise_time.append(pairwise_time_j)
+            if Q_j[0]==1 or Q_j[1]==1 or  Q_j[2]==1 or Q_j[3]==1:
+                pairwise_time.append(pairwise_time_j)
         
             # pariwise distances 
             X = np.asarray(utm.from_latlon(np.array(matchdata['lat']),np.array(matchdata['lon']))[0:2]).T # 
             pairwise_distance_j = scipy.spatial.distance.pdist(X)
-            pairwise_distance.append(pairwise_distance_j)
+            if Q_j[0]==1 or Q_j[1]==1 or  Q_j[2]==1 or Q_j[3]==1:
+                pairwise_distance.append(pairwise_distance_j)
         
-    gamma_e = np.stack(gamma_e)
+    gamma_e = np.stack(gamma_e) # append
     gamma = np.stack(gamma)
     mean_rrs = np.stack(mean_rrs)
     Q = np.stack(Q)
@@ -1165,8 +1055,8 @@ if __name__ == '__main__':
     pairwise_distance = np.concatenate(pairwise_distance)
 
     # output plots in paper submission
-    plt.rc('font', size=18)
-    plt.rcParams['legend.fontsize'] = 13
+    plt.rc('font', size=19)
+    plt.rcParams['legend.fontsize'] = 14
     var_plots() 
     range_plots()
     CV_plots() 
@@ -1178,7 +1068,5 @@ if __name__ == '__main__':
     
     # output pariwise distance plot in paper submission
     pairwise_xt()
-        
-    
-
+    #Nbins_plots() -optional plot 
     
